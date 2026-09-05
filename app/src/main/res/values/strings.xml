@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Split App</string>
+    <string name="accessibility_service_description">Aiuta Split App ad avviare in modo più stabile due applicazioni in schermo diviso.</string>
 </resources>
