@@ -7,12 +7,15 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -45,11 +48,6 @@ public class MainActivity extends Activity {
             this.name = name;
             this.packageName = packageName;
         }
-
-        @Override
-        public String toString() {
-            return name;
-        }
     }
 
     @Override
@@ -66,79 +64,120 @@ public class MainActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(24, 24, 24, 36);
-        root.setBackgroundColor(Color.rgb(248, 247, 250));
+        root.setPadding(dp(18), dp(18), dp(18), dp(28));
+        root.setBackgroundColor(Color.rgb(244, 247, 250));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(dp(20), dp(20), dp(20), dp(20));
+        header.setBackground(makeRounded(Color.rgb(30, 43, 59), dp(22)));
 
         TextView title = new TextView(this);
         title.setText("Split App");
         title.setTextSize(30);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setTextColor(Color.WHITE);
         title.setGravity(Gravity.CENTER);
-        title.setTextColor(Color.rgb(40, 35, 55));
-        root.addView(title, lpMatchWrap());
+        header.addView(title, lpMatchWrap());
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Crea una coppia di app e avviala in schermo diviso.");
-        subtitle.setTextSize(17);
+        subtitle.setText("Le tue coppie di app, pronte in un tocco");
+        subtitle.setTextSize(16);
+        subtitle.setTextColor(Color.rgb(210, 220, 230));
         subtitle.setGravity(Gravity.CENTER);
-        subtitle.setPadding(0, 8, 0, 24);
-        root.addView(subtitle, lpMatchWrap());
+        subtitle.setPadding(0, dp(6), 0, 0);
+        header.addView(subtitle, lpMatchWrap());
+
+        LinearLayout.LayoutParams headerLp = lpMatchWrap();
+        headerLp.setMargins(0, 0, 0, dp(16));
+        root.addView(header, headerLp);
+
+        TextView createTitle = new TextView(this);
+        createTitle.setText("Nuova coppia");
+        createTitle.setTextSize(21);
+        createTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        createTitle.setTextColor(Color.rgb(35, 45, 58));
+        createTitle.setPadding(dp(4), 0, 0, dp(8));
+        root.addView(createTitle, lpMatchWrap());
 
         LinearLayout chooser = new LinearLayout(this);
         chooser.setOrientation(LinearLayout.VERTICAL);
-        chooser.setPadding(16, 16, 16, 16);
-        chooser.setBackground(makeRounded(Color.rgb(233, 227, 248), 22));
+        chooser.setPadding(dp(14), dp(14), dp(14), dp(14));
+        chooser.setBackground(makeRounded(Color.WHITE, dp(20)));
 
-        app1Button = makeChoice("App 1   +");
-        app2Button = makeChoice("App 2   +");
+        app1Button = makeChoice("＋  Scegli App 1");
+        app2Button = makeChoice("＋  Scegli App 2");
 
         app1Button.setOnClickListener(v -> pickApp(1));
         app2Button.setOnClickListener(v -> pickApp(2));
 
-        chooser.addView(app1Button, lpMatchWrap());
+        chooser.addView(app1Button);
 
         TextView swap = new TextView(this);
         swap.setText("⇅");
-        swap.setTextSize(26);
+        swap.setTextSize(28);
+        swap.setTextColor(Color.rgb(78, 99, 125));
         swap.setGravity(Gravity.CENTER);
-        swap.setPadding(0, 8, 0, 8);
+        swap.setPadding(0, dp(6), 0, dp(6));
         swap.setOnClickListener(v -> swapSelection());
         chooser.addView(swap, lpMatchWrap());
 
-        chooser.addView(app2Button, lpMatchWrap());
+        chooser.addView(app2Button);
 
-        root.addView(chooser, lpMatchWrap());
+        LinearLayout.LayoutParams chooserLp = lpMatchWrap();
+        chooserLp.setMargins(0, 0, 0, dp(12));
+        root.addView(chooser, chooserLp);
 
-        Button save = new Button(this);
-        save.setText("SALVA COPPIA");
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER);
+
+        Button save = makeActionButton("SALVA");
         save.setOnClickListener(v -> saveCurrentPair());
-        root.addView(save, lpMatchWrap());
 
-        Button launch = new Button(this);
-        launch.setText("AVVIA ORA");
+        Button launch = makeActionButton("AVVIA ORA");
         launch.setOnClickListener(v -> launchCurrentPair());
-        root.addView(launch, lpMatchWrap());
+
+        LinearLayout.LayoutParams actionLp = new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        actionLp.setMargins(dp(4), dp(4), dp(4), dp(4));
+
+        actions.addView(save, actionLp);
+        actions.addView(launch, actionLp);
+        root.addView(actions, lpMatchWrap());
 
         Button accessibility = new Button(this);
-        accessibility.setText("ACCESSIBILITÀ (OPZIONALE)");
+        accessibility.setText("Modalità Accessibilità");
+        accessibility.setAllCaps(false);
+        accessibility.setTextSize(15);
         accessibility.setOnClickListener(v -> {
             Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
             startActivity(intent);
         });
-        root.addView(accessibility, lpMatchWrap());
+
+        LinearLayout.LayoutParams accLp = lpMatchWrap();
+        accLp.setMargins(0, dp(8), 0, dp(4));
+        root.addView(accessibility, accLp);
 
         TextView help = new TextView(this);
         help.setText(
-                "Se il Lenovo non divide stabilmente lo schermo, abilita Split App " +
-                "nelle impostazioni Accessibilità e riprova."
+                "Se una delle due app esce dallo schermo diviso, abilita Split App in Accessibilità. " +
+                "La v0.3 usa una sequenza più lenta e stabile."
         );
-        help.setTextSize(14);
-        help.setPadding(6, 6, 6, 18);
+        help.setTextSize(13);
+        help.setTextColor(Color.rgb(90, 100, 112));
+        help.setPadding(dp(6), dp(2), dp(6), dp(14));
         root.addView(help, lpMatchWrap());
 
         TextView savedTitle = new TextView(this);
         savedTitle.setText("Coppie salvate");
-        savedTitle.setTextSize(22);
-        savedTitle.setPadding(0, 14, 0, 10);
+        savedTitle.setTextSize(21);
+        savedTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        savedTitle.setTextColor(Color.rgb(35, 45, 58));
+        savedTitle.setPadding(dp(4), dp(8), 0, dp(8));
         root.addView(savedTitle, lpMatchWrap());
 
         pairsContainer = new LinearLayout(this);
@@ -149,33 +188,27 @@ public class MainActivity extends Activity {
         setContentView(scroll);
     }
 
-    private LinearLayout.LayoutParams lpMatchWrap() {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-    }
-
     private TextView makeChoice(String text) {
         TextView view = new TextView(this);
         view.setText(text);
         view.setTextSize(18);
-        view.setTextColor(Color.rgb(45, 35, 70));
+        view.setTextColor(Color.rgb(35, 45, 58));
         view.setGravity(Gravity.CENTER_VERTICAL);
-        view.setPadding(22, 24, 22, 24);
-        view.setBackground(makeRounded(Color.rgb(246, 241, 255), 16));
+        view.setPadding(dp(18), dp(18), dp(18), dp(18));
+        view.setBackground(makeRounded(Color.rgb(239, 244, 249), dp(16)));
 
         LinearLayout.LayoutParams lp = lpMatchWrap();
-        lp.setMargins(0, 8, 0, 8);
+        lp.setMargins(0, dp(5), 0, dp(5));
         view.setLayoutParams(lp);
+
         return view;
     }
 
-    private GradientDrawable makeRounded(int color, int radius) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color);
-        d.setCornerRadius(radius);
-        return d;
+    private Button makeActionButton(String text) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setTextSize(15);
+        return button;
     }
 
     private void loadApps() {
@@ -192,9 +225,7 @@ public class MainActivity extends Activity {
         for (ResolveInfo info : results) {
             String packageName = info.activityInfo.packageName;
 
-            if (packageName.equals(getPackageName())) {
-                continue;
-            }
+            if (packageName.equals(getPackageName())) continue;
 
             CharSequence label = info.loadLabel(pm);
 
@@ -219,6 +250,7 @@ public class MainActivity extends Activity {
         }
 
         String[] names = new String[apps.size()];
+
         for (int i = 0; i < apps.size(); i++) {
             names[i] = apps.get(i).name;
         }
@@ -230,10 +262,10 @@ public class MainActivity extends Activity {
 
                     if (slot == 1) {
                         selected1 = entry;
-                        app1Button.setText("App 1   " + entry.name);
+                        app1Button.setText("App 1  •  " + entry.name);
                     } else {
                         selected2 = entry;
-                        app2Button.setText("App 2   " + entry.name);
+                        app2Button.setText("App 2  •  " + entry.name);
                     }
                 })
                 .show();
@@ -245,11 +277,11 @@ public class MainActivity extends Activity {
         selected2 = temp;
 
         app1Button.setText(
-                selected1 == null ? "App 1   +" : "App 1   " + selected1.name
+                selected1 == null ? "＋  Scegli App 1" : "App 1  •  " + selected1.name
         );
 
         app2Button.setText(
-                selected2 == null ? "App 2   +" : "App 2   " + selected2.name
+                selected2 == null ? "＋  Scegli App 2" : "App 2  •  " + selected2.name
         );
     }
 
@@ -258,7 +290,18 @@ public class MainActivity extends Activity {
 
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
 
+        for (int i = 0; i < MAX_PAIRS; i++) {
+            String p1 = prefs.getString("p1_" + i, null);
+            String p2 = prefs.getString("p2_" + i, null);
+
+            if (selected1.packageName.equals(p1) && selected2.packageName.equals(p2)) {
+                Toast.makeText(this, "Questa coppia è già salvata.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+
         int free = -1;
+
         for (int i = 0; i < MAX_PAIRS; i++) {
             if (!prefs.contains("p1_" + i)) {
                 free = i;
@@ -311,7 +354,6 @@ public class MainActivity extends Activity {
 
     private void launchCurrentPair() {
         if (!hasValidSelection()) return;
-
         launchPair(selected1.packageName, selected2.packageName);
     }
 
@@ -334,32 +376,35 @@ public class MainActivity extends Activity {
             first.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(first);
 
-            app1Button.postDelayed(() -> {
-                boolean accessibilityUsed = false;
+            // Più tempo alla prima app per stabilizzarsi sul Lenovo.
+            pairsContainer.postDelayed(() -> {
+
+                boolean usedAccessibility = false;
 
                 if (SplitAccessibilityService.isAvailable()) {
-                    accessibilityUsed = SplitAccessibilityService.toggleSplitScreen();
+                    usedAccessibility = SplitAccessibilityService.toggleSplitScreen();
                 }
 
-                final boolean used = accessibilityUsed;
+                final boolean accessibilityOk = usedAccessibility;
 
-                app1Button.postDelayed(() -> {
+                // Niente MULTIPLE_TASK nella v0.3: può creare task separati instabili.
+                pairsContainer.postDelayed(() -> {
                     try {
                         second.addFlags(
                                 Intent.FLAG_ACTIVITY_NEW_TASK
                                         | Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT
-                                        | Intent.FLAG_ACTIVITY_MULTIPLE_TASK
                         );
 
                         startActivity(second);
 
-                        if (used) {
+                        if (accessibilityOk) {
                             Toast.makeText(
                                     this,
-                                    "Avvio con modalità Accessibilità.",
+                                    "Split avviato con Accessibilità.",
                                     Toast.LENGTH_SHORT
                             ).show();
                         }
+
                     } catch (Exception e) {
                         Toast.makeText(
                                 this,
@@ -367,9 +412,9 @@ public class MainActivity extends Activity {
                                 Toast.LENGTH_LONG
                         ).show();
                     }
-                }, used ? 500 : 150);
+                }, accessibilityOk ? 900 : 450);
 
-            }, 700);
+            }, 1200);
 
         } catch (Exception e) {
             Toast.makeText(
@@ -393,9 +438,7 @@ public class MainActivity extends Activity {
             String p1 = prefs.getString("p1_" + i, null);
             String p2 = prefs.getString("p2_" + i, null);
 
-            if (p1 == null || p2 == null) {
-                continue;
-            }
+            if (p1 == null || p2 == null) continue;
 
             found = true;
 
@@ -404,37 +447,61 @@ public class MainActivity extends Activity {
 
             final int index = i;
 
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(16, 14, 10, 14);
-            row.setBackground(makeRounded(Color.WHITE, 18));
+            LinearLayout card = new LinearLayout(this);
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
+            card.setPadding(dp(14), dp(12), dp(10), dp(12));
+            card.setBackground(makeRounded(Color.WHITE, dp(18)));
 
-            LinearLayout.LayoutParams rowLp = lpMatchWrap();
-            rowLp.setMargins(0, 7, 0, 7);
-            row.setLayoutParams(rowLp);
+            LinearLayout.LayoutParams cardLp = lpMatchWrap();
+            cardLp.setMargins(0, dp(6), 0, dp(6));
+            card.setLayoutParams(cardLp);
+
+            LinearLayout icons = new LinearLayout(this);
+            icons.setOrientation(LinearLayout.HORIZONTAL);
+            icons.setGravity(Gravity.CENTER_VERTICAL);
+
+            ImageView icon1 = makeIcon(p1);
+            ImageView icon2 = makeIcon(p2);
+
+            icons.addView(icon1);
+            icons.addView(icon2);
+
+            card.addView(icons);
+
+            LinearLayout textBox = new LinearLayout(this);
+            textBox.setOrientation(LinearLayout.VERTICAL);
+            textBox.setPadding(dp(12), 0, dp(8), 0);
 
             TextView label = new TextView(this);
             label.setText(n1 + "  +  " + n2);
             label.setTextSize(17);
-            label.setPadding(10, 6, 10, 6);
+            label.setTypeface(Typeface.DEFAULT_BOLD);
+            label.setTextColor(Color.rgb(40, 50, 62));
 
-            LinearLayout.LayoutParams labelLp =
+            TextView hint = new TextView(this);
+            hint.setText("Tocca per avviare");
+            hint.setTextSize(13);
+            hint.setTextColor(Color.rgb(110, 120, 130));
+
+            textBox.addView(label);
+            textBox.addView(hint);
+
+            LinearLayout.LayoutParams textLp =
                     new LinearLayout.LayoutParams(
                             0,
                             LinearLayout.LayoutParams.WRAP_CONTENT,
                             1f
                     );
 
-            row.addView(label, labelLp);
+            card.addView(textBox, textLp);
 
-            Button start = new Button(this);
-            start.setText("▶");
-            start.setOnClickListener(v -> launchPair(p1, p2));
-            row.addView(start);
-
-            Button delete = new Button(this);
+            TextView delete = new TextView(this);
             delete.setText("✕");
+            delete.setTextSize(20);
+            delete.setGravity(Gravity.CENTER);
+            delete.setPadding(dp(14), dp(10), dp(14), dp(10));
+
             delete.setOnClickListener(v -> {
                 prefs.edit()
                         .remove("p1_" + index)
@@ -445,18 +512,61 @@ public class MainActivity extends Activity {
 
                 refreshSavedPairs();
             });
-            row.addView(delete);
 
-            pairsContainer.addView(row);
+            card.addView(delete);
+
+            card.setOnClickListener(v -> launchPair(p1, p2));
+
+            pairsContainer.addView(card);
         }
 
         if (!found) {
             TextView empty = new TextView(this);
-            empty.setText("Nessuna coppia salvata.");
+            empty.setText("Nessuna coppia salvata.\nCreane una qui sopra.");
             empty.setTextSize(16);
+            empty.setTextColor(Color.rgb(100, 110, 120));
             empty.setGravity(Gravity.CENTER);
-            empty.setPadding(0, 22, 0, 22);
+            empty.setPadding(0, dp(22), 0, dp(22));
             pairsContainer.addView(empty);
         }
+    }
+
+    private ImageView makeIcon(String packageName) {
+        ImageView image = new ImageView(this);
+
+        int size = dp(42);
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(size, size);
+
+        lp.setMargins(0, 0, dp(6), 0);
+        image.setLayoutParams(lp);
+
+        try {
+            Drawable icon = getPackageManager().getApplicationIcon(packageName);
+            image.setImageDrawable(icon);
+        } catch (Exception ignored) {
+            image.setImageResource(android.R.drawable.sym_def_app_icon);
+        }
+
+        return image;
+    }
+
+    private LinearLayout.LayoutParams lpMatchWrap() {
+        return new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+    }
+
+    private GradientDrawable makeRounded(int color, int radius) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radius);
+        return d;
+    }
+
+    private int dp(int value) {
+        float density = getResources().getDisplayMetrics().density;
+        return Math.round(value * density);
     }
 }
