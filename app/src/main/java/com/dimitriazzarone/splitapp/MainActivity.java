@@ -9,6 +9,7 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.net.Uri;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.provider.Settings;
@@ -21,9 +22,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -36,6 +36,8 @@ public class MainActivity extends Activity {
 
     private static final String PREFS = "split_pairs";
     private static final int MAX_SCAN_PAIRS = 1000;
+    private static final int REQ_EXPORT_PAIRS = 7001;
+    private static final int REQ_IMPORT_PAIRS = 7002;
 
     private final List<AppEntry> apps = new ArrayList<>();
 
@@ -135,12 +137,12 @@ public class MainActivity extends Activity {
         });
         root.addView(accessibility, lpMatchWrap());
         Button exportPairs = new Button(this);
-        exportPairs.setText("ESPORTA COPPIE");
+        exportPairs.setText("ESPORTA COPPIE IN FILE");
         exportPairs.setOnClickListener(v -> exportPairs());
         root.addView(exportPairs, lpMatchWrap());
 
         Button importPairs = new Button(this);
-        importPairs.setText("IMPORTA COPPIE");
+        importPairs.setText("IMPORTA COPPIE DA FILE");
         importPairs.setOnClickListener(v -> importPairs());
         root.addView(importPairs, lpMatchWrap());
 
@@ -415,76 +417,135 @@ public class MainActivity extends Activity {
         }
     }
 
-    private File getBackupFile() {
-        return new File(getExternalFilesDir(null), "split_app_backup.json");
+    private JSONArray buildPairsJson() throws Exception {
+        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        JSONArray arr = new JSONArray();
+
+        for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
+            String p1 = prefs.getString("p1_" + i, null);
+            String p2 = prefs.getString("p2_" + i, null);
+            if (p1 == null || p2 == null) continue;
+
+            JSONObject o = new JSONObject();
+            o.put("p1", p1);
+            o.put("n1", prefs.getString("n1_" + i, p1));
+            o.put("p2", p2);
+            o.put("n2", prefs.getString("n2_" + i, p2));
+            arr.put(o);
+        }
+
+        return arr;
     }
 
     private void exportPairs() {
-        try {
-            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-            JSONArray arr = new JSONArray();
-            for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
-                String p1 = prefs.getString("p1_" + i, null);
-                String p2 = prefs.getString("p2_" + i, null);
-                if (p1 == null || p2 == null) continue;
-
-                JSONObject o = new JSONObject();
-                o.put("p1", p1);
-                o.put("n1", prefs.getString("n1_" + i, p1));
-                o.put("p2", p2);
-                o.put("n2", prefs.getString("n2_" + i, p2));
-                arr.put(o);
-            }
-
-            try (FileOutputStream out = new FileOutputStream(getBackupFile())) {
-                out.write(arr.toString(2).getBytes(StandardCharsets.UTF_8));
-            }
-
-            Toast.makeText(this,
-                    "Backup creato: " + getBackupFile().getAbsolutePath(),
-                    Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Errore backup: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        intent.putExtra(Intent.EXTRA_TITLE, "split_app_backup.json");
+        startActivityForResult(intent, REQ_EXPORT_PAIRS);
     }
 
     private void importPairs() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        startActivityForResult(intent, REQ_IMPORT_PAIRS);
+    }
+
+    private void writePairsToUri(Uri uri) {
         try {
-            File file = getBackupFile();
-            if (!file.exists()) {
-                Toast.makeText(this,
-                        "Backup non trovato: " + file.getAbsolutePath(),
-                        Toast.LENGTH_LONG).show();
-                return;
+            JSONArray arr = buildPairsJson();
+
+            try (OutputStream out = getContentResolver().openOutputStream(uri, "w")) {
+                if (out == null) throw new Exception("Impossibile aprire il file");
+                out.write(arr.toString(2).getBytes(StandardCharsets.UTF_8));
+                out.flush();
             }
 
-            byte[] data = new byte[(int) file.length()];
-            try (FileInputStream in = new FileInputStream(file)) {
-                if (in.read(data) <= 0) throw new Exception("File backup vuoto");
+            Toast.makeText(
+                    this,
+                    "Backup salvato. Coppie esportate: " + arr.length(),
+                    Toast.LENGTH_LONG
+            ).show();
+
+        } catch (Exception e) {
+            Toast.makeText(
+                    this,
+                    "Errore backup: " + e.getMessage(),
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    private void readPairsFromUri(Uri uri) {
+        try {
+            StringBuilder sb = new StringBuilder();
+
+            try (InputStream in = getContentResolver().openInputStream(uri)) {
+                if (in == null) throw new Exception("Impossibile aprire il file");
+
+                byte[] buffer = new byte[4096];
+                int n;
+                while ((n = in.read(buffer)) > 0) {
+                    sb.append(new String(buffer, 0, n, StandardCharsets.UTF_8));
+                }
             }
 
-            JSONArray arr = new JSONArray(new String(data, StandardCharsets.UTF_8));
+            JSONArray arr = new JSONArray(sb.toString());
             SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
             SharedPreferences.Editor ed = prefs.edit();
 
             for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
-                ed.remove("p1_" + i).remove("n1_" + i)
-                  .remove("p2_" + i).remove("n2_" + i);
+                ed.remove("p1_" + i)
+                  .remove("n1_" + i)
+                  .remove("p2_" + i)
+                  .remove("n2_" + i);
             }
 
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject o = arr.getJSONObject(i);
-                ed.putString("p1_" + i, o.getString("p1"));
-                ed.putString("n1_" + i, o.optString("n1", o.getString("p1")));
-                ed.putString("p2_" + i, o.getString("p2"));
-                ed.putString("n2_" + i, o.optString("n2", o.getString("p2")));
+
+                String p1 = o.getString("p1");
+                String p2 = o.getString("p2");
+
+                ed.putString("p1_" + i, p1);
+                ed.putString("n1_" + i, o.optString("n1", p1));
+                ed.putString("p2_" + i, p2);
+                ed.putString("n2_" + i, o.optString("n2", p2));
             }
 
             ed.apply();
             refreshSavedPairs();
-            Toast.makeText(this, "Coppie ripristinate: " + arr.length(), Toast.LENGTH_LONG).show();
+
+            Toast.makeText(
+                    this,
+                    "Coppie ripristinate: " + arr.length(),
+                    Toast.LENGTH_LONG
+            ).show();
+
         } catch (Exception e) {
-            Toast.makeText(this, "Errore ripristino: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            Toast.makeText(
+                    this,
+                    "Errore ripristino: " + e.getMessage(),
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+
+        Uri uri = data.getData();
+
+        if (requestCode == REQ_EXPORT_PAIRS) {
+            writePairsToUri(uri);
+        } else if (requestCode == REQ_IMPORT_PAIRS) {
+            readPairsFromUri(uri);
         }
     }
 
