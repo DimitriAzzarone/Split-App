@@ -143,15 +143,6 @@ public class MainActivity extends Activity {
         importPairs.setText("IMPORTA COPPIE");
         importPairs.setOnClickListener(v -> importPairs());
         root.addView(importPairs, lpMatchWrap());
-        Button exportPairs = new Button(this);
-        exportPairs.setText("ESPORTA COPPIE");
-        exportPairs.setOnClickListener(v -> exportPairs());
-        root.addView(exportPairs, lpMatchWrap());
-
-        Button importPairs = new Button(this);
-        importPairs.setText("IMPORTA COPPIE");
-        importPairs.setOnClickListener(v -> importPairs());
-        root.addView(importPairs, lpMatchWrap());
 
         TextView help = new TextView(this);
         help.setText(
@@ -421,79 +412,6 @@ public class MainActivity extends Activity {
                     "Errore di avvio: " + e.getMessage(),
                     Toast.LENGTH_LONG
             ).show();
-        }
-    }
-
-    private File getBackupFile() {
-        return new File(getExternalFilesDir(null), "split_app_backup.json");
-    }
-
-    private void exportPairs() {
-        try {
-            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-            JSONArray arr = new JSONArray();
-            for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
-                String p1 = prefs.getString("p1_" + i, null);
-                String p2 = prefs.getString("p2_" + i, null);
-                if (p1 == null || p2 == null) continue;
-
-                JSONObject o = new JSONObject();
-                o.put("p1", p1);
-                o.put("n1", prefs.getString("n1_" + i, p1));
-                o.put("p2", p2);
-                o.put("n2", prefs.getString("n2_" + i, p2));
-                arr.put(o);
-            }
-
-            try (FileOutputStream out = new FileOutputStream(getBackupFile())) {
-                out.write(arr.toString(2).getBytes(StandardCharsets.UTF_8));
-            }
-
-            Toast.makeText(this,
-                    "Backup creato: " + getBackupFile().getAbsolutePath(),
-                    Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Errore backup: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void importPairs() {
-        try {
-            File file = getBackupFile();
-            if (!file.exists()) {
-                Toast.makeText(this,
-                        "Backup non trovato: " + file.getAbsolutePath(),
-                        Toast.LENGTH_LONG).show();
-                return;
-            }
-
-            byte[] data = new byte[(int) file.length()];
-            try (FileInputStream in = new FileInputStream(file)) {
-                if (in.read(data) <= 0) throw new Exception("File backup vuoto");
-            }
-
-            JSONArray arr = new JSONArray(new String(data, StandardCharsets.UTF_8));
-            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-            SharedPreferences.Editor ed = prefs.edit();
-
-            for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
-                ed.remove("p1_" + i).remove("n1_" + i)
-                  .remove("p2_" + i).remove("n2_" + i);
-            }
-
-            for (int i = 0; i < arr.length(); i++) {
-                JSONObject o = arr.getJSONObject(i);
-                ed.putString("p1_" + i, o.getString("p1"));
-                ed.putString("n1_" + i, o.optString("n1", o.getString("p1")));
-                ed.putString("p2_" + i, o.getString("p2"));
-                ed.putString("n2_" + i, o.optString("n2", o.getString("p2")));
-            }
-
-            ed.apply();
-            refreshSavedPairs();
-            Toast.makeText(this, "Coppie ripristinate: " + arr.length(), Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Errore ripristino: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
