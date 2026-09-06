@@ -9,15 +9,24 @@ import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.EditText;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -26,7 +35,7 @@ import java.util.List;
 public class MainActivity extends Activity {
 
     private static final String PREFS = "split_pairs";
-    private static final int MAX_PAIRS = 12;
+    private static final int MAX_SCAN_PAIRS = 1000;
 
     private final List<AppEntry> apps = new ArrayList<>();
 
@@ -125,6 +134,24 @@ public class MainActivity extends Activity {
             startActivity(intent);
         });
         root.addView(accessibility, lpMatchWrap());
+        Button exportPairs = new Button(this);
+        exportPairs.setText("ESPORTA COPPIE");
+        exportPairs.setOnClickListener(v -> exportPairs());
+        root.addView(exportPairs, lpMatchWrap());
+
+        Button importPairs = new Button(this);
+        importPairs.setText("IMPORTA COPPIE");
+        importPairs.setOnClickListener(v -> importPairs());
+        root.addView(importPairs, lpMatchWrap());
+        Button exportPairs = new Button(this);
+        exportPairs.setText("ESPORTA COPPIE");
+        exportPairs.setOnClickListener(v -> exportPairs());
+        root.addView(exportPairs, lpMatchWrap());
+
+        Button importPairs = new Button(this);
+        importPairs.setText("IMPORTA COPPIE");
+        importPairs.setOnClickListener(v -> importPairs());
+        root.addView(importPairs, lpMatchWrap());
 
         TextView help = new TextView(this);
         help.setText(
@@ -218,16 +245,38 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String[] names = new String[apps.size()];
-        for (int i = 0; i < apps.size(); i++) {
-            names[i] = apps.get(i).name;
-        }
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(24, 12, 24, 12);
 
-        new AlertDialog.Builder(this)
+        EditText search = new EditText(this);
+        search.setHint("Digita il nome dell'app...");
+        box.addView(search, lpMatchWrap());
+
+        LinearLayout results = new LinearLayout(this);
+        results.setOrientation(LinearLayout.VERTICAL);
+
+        ScrollView resultScroll = new ScrollView(this);
+        resultScroll.addView(results);
+        box.addView(resultScroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 700));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(slot == 1 ? "Scegli App 1" : "Scegli App 2")
-                .setItems(names, (dialog, which) -> {
-                    AppEntry entry = apps.get(which);
+                .setView(box)
+                .setNegativeButton("ANNULLA", null)
+                .create();
 
+        Runnable refresh = () -> {
+            String q = search.getText().toString().trim().toLowerCase();
+            results.removeAllViews();
+            for (AppEntry entry : apps) {
+                if (!q.isEmpty() && !entry.name.toLowerCase().contains(q)) continue;
+                TextView row = new TextView(this);
+                row.setText(entry.name);
+                row.setTextSize(18);
+                row.setPadding(18, 20, 18, 20);
+                row.setOnClickListener(v -> {
                     if (slot == 1) {
                         selected1 = entry;
                         app1Button.setText("App 1   " + entry.name);
@@ -235,8 +284,20 @@ public class MainActivity extends Activity {
                         selected2 = entry;
                         app2Button.setText("App 2   " + entry.name);
                     }
-                })
-                .show();
+                    dialog.dismiss();
+                });
+                results.addView(row, lpMatchWrap());
+            }
+        };
+
+        search.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            public void onTextChanged(CharSequence s, int start, int before, int count) { refresh.run(); }
+            public void afterTextChanged(Editable s) {}
+        });
+
+        dialog.setOnShowListener(d -> refresh.run());
+        dialog.show();
     }
 
     private void swapSelection() {
@@ -255,25 +316,9 @@ public class MainActivity extends Activity {
 
     private void saveCurrentPair() {
         if (!hasValidSelection()) return;
-
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-
-        int free = -1;
-        for (int i = 0; i < MAX_PAIRS; i++) {
-            if (!prefs.contains("p1_" + i)) {
-                free = i;
-                break;
-            }
-        }
-
-        if (free == -1) {
-            Toast.makeText(
-                    this,
-                    "Hai raggiunto il limite di coppie salvate.",
-                    Toast.LENGTH_LONG
-            ).show();
-            return;
-        }
+        int free = 0;
+        while (prefs.contains("p1_" + free)) free++;
 
         prefs.edit()
                 .putString("p1_" + free, selected1.packageName)
@@ -283,7 +328,6 @@ public class MainActivity extends Activity {
                 .apply();
 
         refreshSavedPairs();
-
         Toast.makeText(this, "Coppia salvata.", Toast.LENGTH_SHORT).show();
     }
 
@@ -380,6 +424,152 @@ public class MainActivity extends Activity {
         }
     }
 
+    private File getBackupFile() {
+        return new File(getExternalFilesDir(null), "split_app_backup.json");
+    }
+
+    private void exportPairs() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+            JSONArray arr = new JSONArray();
+            for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
+                String p1 = prefs.getString("p1_" + i, null);
+                String p2 = prefs.getString("p2_" + i, null);
+                if (p1 == null || p2 == null) continue;
+
+                JSONObject o = new JSONObject();
+                o.put("p1", p1);
+                o.put("n1", prefs.getString("n1_" + i, p1));
+                o.put("p2", p2);
+                o.put("n2", prefs.getString("n2_" + i, p2));
+                arr.put(o);
+            }
+
+            try (FileOutputStream out = new FileOutputStream(getBackupFile())) {
+                out.write(arr.toString(2).getBytes(StandardCharsets.UTF_8));
+            }
+
+            Toast.makeText(this,
+                    "Backup creato: " + getBackupFile().getAbsolutePath(),
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Errore backup: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void importPairs() {
+        try {
+            File file = getBackupFile();
+            if (!file.exists()) {
+                Toast.makeText(this,
+                        "Backup non trovato: " + file.getAbsolutePath(),
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            byte[] data = new byte[(int) file.length()];
+            try (FileInputStream in = new FileInputStream(file)) {
+                if (in.read(data) <= 0) throw new Exception("File backup vuoto");
+            }
+
+            JSONArray arr = new JSONArray(new String(data, StandardCharsets.UTF_8));
+            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+            SharedPreferences.Editor ed = prefs.edit();
+
+            for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
+                ed.remove("p1_" + i).remove("n1_" + i)
+                  .remove("p2_" + i).remove("n2_" + i);
+            }
+
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                ed.putString("p1_" + i, o.getString("p1"));
+                ed.putString("n1_" + i, o.optString("n1", o.getString("p1")));
+                ed.putString("p2_" + i, o.getString("p2"));
+                ed.putString("n2_" + i, o.optString("n2", o.getString("p2")));
+            }
+
+            ed.apply();
+            refreshSavedPairs();
+            Toast.makeText(this, "Coppie ripristinate: " + arr.length(), Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Errore ripristino: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private File getBackupFile() {
+        return new File(getExternalFilesDir(null), "split_app_backup.json");
+    }
+
+    private void exportPairs() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+            JSONArray arr = new JSONArray();
+            for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
+                String p1 = prefs.getString("p1_" + i, null);
+                String p2 = prefs.getString("p2_" + i, null);
+                if (p1 == null || p2 == null) continue;
+
+                JSONObject o = new JSONObject();
+                o.put("p1", p1);
+                o.put("n1", prefs.getString("n1_" + i, p1));
+                o.put("p2", p2);
+                o.put("n2", prefs.getString("n2_" + i, p2));
+                arr.put(o);
+            }
+
+            try (FileOutputStream out = new FileOutputStream(getBackupFile())) {
+                out.write(arr.toString(2).getBytes(StandardCharsets.UTF_8));
+            }
+
+            Toast.makeText(this,
+                    "Backup creato: " + getBackupFile().getAbsolutePath(),
+                    Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Errore backup: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void importPairs() {
+        try {
+            File file = getBackupFile();
+            if (!file.exists()) {
+                Toast.makeText(this,
+                        "Backup non trovato: " + file.getAbsolutePath(),
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            byte[] data = new byte[(int) file.length()];
+            try (FileInputStream in = new FileInputStream(file)) {
+                if (in.read(data) <= 0) throw new Exception("File backup vuoto");
+            }
+
+            JSONArray arr = new JSONArray(new String(data, StandardCharsets.UTF_8));
+            SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+            SharedPreferences.Editor ed = prefs.edit();
+
+            for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
+                ed.remove("p1_" + i).remove("n1_" + i)
+                  .remove("p2_" + i).remove("n2_" + i);
+            }
+
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                ed.putString("p1_" + i, o.getString("p1"));
+                ed.putString("n1_" + i, o.optString("n1", o.getString("p1")));
+                ed.putString("p2_" + i, o.getString("p2"));
+                ed.putString("n2_" + i, o.optString("n2", o.getString("p2")));
+            }
+
+            ed.apply();
+            refreshSavedPairs();
+            Toast.makeText(this, "Coppie ripristinate: " + arr.length(), Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Errore ripristino: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void refreshSavedPairs() {
         if (pairsContainer == null) return;
 
@@ -389,7 +579,7 @@ public class MainActivity extends Activity {
 
         boolean found = false;
 
-        for (int i = 0; i < MAX_PAIRS; i++) {
+        for (int i = 0; i < MAX_SCAN_PAIRS; i++) {
             String p1 = prefs.getString("p1_" + i, null);
             String p2 = prefs.getString("p2_" + i, null);
 
