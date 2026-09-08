@@ -343,11 +343,27 @@ public class MainActivity extends Activity {
         launchPair(selected1.packageName, selected2.packageName);
     }
 
-    private void launchPair(String firstPackage, String secondPackage) {
+    private Intent buildLaunchIntent(String packageName) {
         PackageManager pm = getPackageManager();
 
-        Intent first = pm.getLaunchIntentForPackage(firstPackage);
-        Intent second = pm.getLaunchIntentForPackage(secondPackage);
+        Intent probe = new Intent(Intent.ACTION_MAIN);
+        probe.addCategory(Intent.CATEGORY_LAUNCHER);
+        probe.setPackage(packageName);
+
+        ResolveInfo resolved = pm.resolveActivity(probe, PackageManager.MATCH_ALL);
+        if (resolved != null && resolved.activityInfo != null) {
+            Intent explicit = new Intent(Intent.ACTION_MAIN);
+            explicit.addCategory(Intent.CATEGORY_LAUNCHER);
+            explicit.setClassName(packageName, resolved.activityInfo.name);
+            return explicit;
+        }
+
+        return pm.getLaunchIntentForPackage(packageName);
+    }
+
+    private void launchPair(String firstPackage, String secondPackage) {
+        Intent first = buildLaunchIntent(firstPackage);
+        Intent second = buildLaunchIntent(secondPackage);
 
         if (first == null || second == null) {
             Toast.makeText(
