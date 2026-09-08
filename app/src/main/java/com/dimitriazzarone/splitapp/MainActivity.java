@@ -334,15 +334,6 @@ public class MainActivity extends Activity {
             return false;
         }
 
-        if (selected1.packageName.equals(selected2.packageName)) {
-            Toast.makeText(
-                    this,
-                    "Scegli due app diverse.",
-                    Toast.LENGTH_SHORT
-            ).show();
-            return false;
-        }
-
         return true;
     }
 
