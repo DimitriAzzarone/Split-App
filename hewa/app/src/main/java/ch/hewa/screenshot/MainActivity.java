@@ -1,0 +1,8 @@
+package ch.hewa.screenshot;
+import android.app.*;import android.content.*;import android.graphics.*;import android.hardware.display.*;import android.media.*;import android.media.projection.*;import android.os.*;import android.provider.MediaStore;import android.util.DisplayMetrics;import android.view.*;import android.widget.*;import java.io.*;import java.nio.*;import java.text.*;import java.util.*;
+public class MainActivity extends Activity {
+ static final int REQ=100; MediaProjection projection; VirtualDisplay display;ImageReader reader; Handler handler=new Handler(Looper.getMainLooper());
+ public void onCreate(Bundle b){super.onCreate(b);LinearLayout box=new LinearLayout(this);box.setOrientation(1);box.setPadding(35,70,35,30);TextView t=new TextView(this);t.setText("HEWA Screenshot — Cattura ciò che conta");t.setTextSize(23);box.addView(t);Button start=new Button(this);start.setText("Autorizza acquisizione");box.addView(start);start.setOnClickListener(v->startActivityForResult(getSystemService(MediaProjectionManager.class).createScreenCaptureIntent(),REQ));Button shot=new Button(this);shot.setText("SCATTA SCREENSHOT");box.addView(shot);shot.setOnClickListener(v->shot());setContentView(box);}
+ protected void onActivityResult(int req,int result,Intent data){super.onActivityResult(req,result,data);if(req!=REQ||result!=RESULT_OK||data==null)return;Intent i=new Intent(this,ServiceCapture.class);i.putExtra("result",result);i.putExtra("data",data);startForegroundService(i);}
+ void shot(){startService(new Intent(this,ServiceCapture.class).setAction("SHOT"));}
+}
